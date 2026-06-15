@@ -45,6 +45,20 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_rebuild(args) -> int:
+    """灾难恢复:从邮箱(含已归类文件夹)重新拉取重建本地数据。"""
+    from .pipeline import rebuild
+
+    config = load_config(args.config)
+    stats = rebuild(config)
+    print(
+        f"重建完成:扫描邮件 {stats.emails} 封 | 入库 {stats.invoices_saved} 张 | "
+        f"重复 {stats.duplicates} | 待处理 {stats.pending} | 错误 {stats.errors}"
+    )
+    print(f"汇总已导出:{config.output_file}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="fapiao", description="发票邮件自动识别归档")
     parser.add_argument("-c", "--config", default="config.yaml", help="配置文件路径")
@@ -56,6 +70,9 @@ def main(argv=None) -> int:
 
     p_export = sub.add_parser("export", help="仅根据现有数据重新生成 Excel")
     p_export.set_defaults(func=cmd_export)
+
+    p_rebuild = sub.add_parser("rebuild", help="灾难恢复:从邮箱归档文件夹重建本地数据")
+    p_rebuild.set_defaults(func=cmd_rebuild)
 
     args = parser.parse_args(argv)
     _setup_logging(args.verbose)

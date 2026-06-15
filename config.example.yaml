@@ -9,6 +9,10 @@ imap:
   fetch_limit: 50           # 每次最多处理多少封未处理邮件
   # 只处理含这些主题关键词的邮件;留空表示不过滤(全部尝试识别)
   subject_keywords: []      # 例: ["发票", "fapiao", "invoice"]
+  # 处理后把「有发票来源」的邮件移入文件夹归类(营销邮件留在收件箱不动)
+  organize: true
+  folder_done: 发票已处理    # 成功识别出发票的邮件移到这里
+  folder_pending: 发票待处理  # 有发票来源但没识别成功的移到这里(需人工)
 
 ai:                         # OpenAI 兼容接口(通义千问 / 智谱等均兼容)
   api_key: "sk-xxxxxxxx"

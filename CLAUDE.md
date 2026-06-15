@@ -20,6 +20,9 @@ python -m fapiao -c other.yaml run
 # 仅根据现有 SQLite 数据重新生成 Excel(不收件、不调 API)
 python -m fapiao export
 
+# 灾难恢复:本地数据丢失后从邮箱(含归档文件夹)重建 SQLite+归档+Excel
+python -m fapiao rebuild
+
 # 测试(pytest 配置在 pyproject.toml,已把 src/ 加入 pythonpath)
 pytest                          # 全部
 pytest tests/test_pipeline.py   # 单文件
@@ -53,7 +56,7 @@ ingest → acquire → normalize → extract → store → export
 4. **`extract.py`** — 调 LLM(`_call_text`/`_call_vision`),强制输出固定字段 JSON,带超时+重试;`parse_response` 容忍 ```json 围栏。缺 `发票号码` 或判定非发票 → `ExtractError`。
 5. **`store.py`** — `Store`(SQLite)。三表:`processed_emails`(邮件 UID 去重,省 API)、`invoices`(**`发票号码` 为主键去重**)、`pending`。`archive_file` 把原件写到 `archive_dir/YYYY/MM/<发票号>.<ext>`(年月来自 `_year_month` 解析开票日期的全部数字)。
 6. **`export.py`** — openpyxl 生成两个 sheet:`发票汇总` + `待处理`。
-7. **`pipeline.py`** — `process_email(...)` 是核心、**不依赖 IMAP**(便于测试);`run(config)` 串起全流程。低置信度 → pending,而非丢弃。
+7. **`pipeline.py`** — `process_email(...)` 是核心、**不依赖 IMAP**(便于测试);`run(config)` 串起全流程。低置信度 → pending,而非丢弃。`_target_folder(part, config)` 是纯函数,决定处理后把邮件移入哪个文件夹(识别成功/重复→已处理;有「强发票信号」即附件或正文发票文本但失败→待处理;否则不移)。`Stats.strong_sources` 只数附件/压缩包/正文文本来源,**不数正文链接、二维码下载**——避免营销邮件里能下文件的链接被误判;判定靠 `acquire` 的 `source.origin` 前缀。移动用「延迟到收件结束后、新连接统一搬」(`_apply_moves`),规避 163 拉大邮件后掐断 socket 导致紧跟的 COPY 失败。`rebuild(config)` 用于灾难恢复:遍历 INBOX + 两个归档文件夹重新识别,**每文件夹独立连接**(163 在大邮件后会掐断 socket,重连避免拖垮其余文件夹),按发票号去重故可安全重复跑。
 8. **`cli.py` / `__main__.py`** — argparse 入口。
 
 ### 设计约定

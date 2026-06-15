@@ -6,11 +6,14 @@
 from __future__ import annotations
 
 import email
+import logging
 from email.header import decode_header, make_header
 from email.message import Message
 from typing import Iterator, Optional
 
 from .models import Attachment, EmailMessage
+
+log = logging.getLogger("fapiao")
 
 
 def _decode(value: Optional[str]) -> str:
@@ -144,3 +147,46 @@ class MailReader:
                 continue
             yield parse_email(uid, raw)
             count += 1
+
+    # ---- 文件夹归类 ----
+    def ensure_folder(self, name: str) -> bool:
+        """确保文件夹存在(幂等)。服务器拒绝建文件夹时返回 False(调用方降级为不移动)。"""
+        assert self.client is not None, "请先 connect()"
+        try:
+            if not self.client.folder_exists(name):
+                self.client.create_folder(name)
+            return True
+        except Exception:  # noqa: BLE001
+            log.warning("创建文件夹「%s」失败,本轮不移动邮件", name)
+            return False
+
+    def move_message(self, uid: int, folder: str) -> None:
+        """把当前文件夹里的一封邮件移到目标文件夹。
+
+        用 copy + 标记删除,真正 expunge 由收尾统一调用,兼容不支持 MOVE 扩展的服务器(如 163)。
+        """
+        assert self.client is not None, "请先 connect()"
+        self.client.copy([uid], folder)
+        self.client.delete_messages([uid])
+
+    def expunge(self) -> None:
+        """清除已标记删除的邮件(移动收尾时统一调用)。"""
+        if self.client is None:
+            return
+        try:
+            self.client.expunge()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def fetch_all(self, folder: str) -> Iterator[EmailMessage]:
+        """拉取某文件夹里的全部邮件(用于 rebuild:不按 processed 过滤、不限量)。"""
+        assert self.client is not None, "请先 connect()"
+        if not self.client.folder_exists(folder):
+            return
+        self.client.select_folder(folder)
+        for uid in sorted(self.client.search(["ALL"])):
+            resp = self.client.fetch([uid], ["RFC822"])
+            raw = resp.get(uid, {}).get(b"RFC822")
+            if not raw:
+                continue
+            yield parse_email(uid, raw)

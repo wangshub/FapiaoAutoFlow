@@ -23,6 +23,11 @@ class Config:
     fetch_limit: int = 50
     subject_keywords: list[str] = field(default_factory=list)
 
+    # 处理后把发票邮件移入文件夹归类(默认开启)
+    organize_folders: bool = True
+    folder_done: str = "发票已处理"
+    folder_pending: str = "发票待处理"
+
     # AI(OpenAI 兼容接口)
     llm_api_key: str = ""
     llm_base_url: str = ""
@@ -81,6 +86,9 @@ def load_config(config_path: str | Path = "config.yaml") -> Config:
         imap_folder=imap.get("folder", "INBOX"),
         fetch_limit=int(imap.get("fetch_limit", 50)),
         subject_keywords=list(imap.get("subject_keywords", []) or []),
+        organize_folders=bool(imap.get("organize", True)),
+        folder_done=imap.get("folder_done", "发票已处理"),
+        folder_pending=imap.get("folder_pending", "发票待处理"),
         llm_api_key=str(ai.get("api_key", "") or ""),
         llm_base_url=ai.get("base_url", ""),
         llm_model=ai.get("model", "qwen-plus"),
