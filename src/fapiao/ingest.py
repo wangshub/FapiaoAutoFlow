@@ -102,7 +102,7 @@ class MailReader:
         from imapclient import IMAPClient
 
         if not self.config.imap_host or not self.config.imap_user:
-            raise RuntimeError("IMAP 未配置:请在 .env 填写 IMAP_HOST / IMAP_USER / IMAP_PASSWORD")
+            raise RuntimeError("IMAP 未配置:请在 config.yaml 的 imap 段填写 host / user / password")
 
         self.client = IMAPClient(self.config.imap_host, port=self.config.imap_port, ssl=True)
         self.client.login(self.config.imap_user, self.config.imap_password)

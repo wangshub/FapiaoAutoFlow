@@ -1,0 +1,19 @@
+services:
+  fapiao:
+    build: .
+    image: fapiao-auto-flow:latest
+    container_name: fapiao
+    restart: unless-stopped
+
+    environment:
+      - TZ=Asia/Shanghai
+      - RUN_INTERVAL=1800        # 轮询间隔(秒),1800=30 分钟
+
+    volumes:
+      # 全部配置(含 IMAP 授权码 / LLM key)从 NAS 上的 config.yaml 读取,不进镜像
+      # 部署前先在本目录:cp config.example.yaml config.yaml 并填好凭据
+      - ./config.yaml:/app/config.yaml:ro
+      # 数据库 / 归档发票 / 汇总 Excel 全部留在 NAS,容器重建不丢
+      - ./data:/app/data
+
+    # 纯出站访问(IMAP 993 / HTTPS),无需映射任何入站端口

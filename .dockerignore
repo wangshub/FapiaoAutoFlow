@@ -1,0 +1,14 @@
+# 缩小构建上下文,且确保密钥/数据/虚拟环境不进镜像
+.venv/
+venv/
+data/
+.git/
+.gitignore
+.env
+config.yaml
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.DS_Store
+.claude/
