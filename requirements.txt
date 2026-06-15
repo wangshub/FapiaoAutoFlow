@@ -1,0 +1,28 @@
+# 邮件收取
+IMAPClient>=3.0
+
+# PDF 处理:文字层抽取 + 渲染成图
+pdfplumber>=0.11
+PyMuPDF>=1.24
+
+# 图片处理 + 二维码解码(用 opencv 自带的 QRCodeDetector,免装 zbar 系统库)
+opencv-python-headless>=4.9
+Pillow>=10.0
+
+# Excel 导出
+openpyxl>=3.1
+
+# AI 识别:OpenAI 兼容接口(通义/智谱等均兼容)
+openai>=1.30
+
+# 下载正文/二维码里的发票链接
+requests>=2.31
+
+# 配置
+PyYAML>=6.0
+python-dotenv>=1.0
+
+# ---- 可选 ----
+# OFD 格式解析(增值税电子发票的国标格式之一)。依赖较重,按需单独安装:
+#   pip install easyofd
+# 未安装时,OFD 来源会自动进入「待处理」清单,不影响其他格式。

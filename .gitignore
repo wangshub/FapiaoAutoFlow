@@ -1,0 +1,17 @@
+# 敏感信息
+.env
+
+# 本地运行配置(从 config.example.yaml 复制后按需修改)
+config.yaml
+
+# 运行数据:数据库、归档发票、导出 Excel
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.DS_Store

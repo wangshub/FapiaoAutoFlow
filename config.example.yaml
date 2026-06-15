@@ -1,0 +1,25 @@
+# 复制为 config.yaml 后按需修改。非敏感配置放这里;账号/密钥放 .env。
+
+imap:
+  folder: INBOX          # 监控的邮箱文件夹
+  fetch_limit: 50        # 每次最多处理多少封未处理邮件
+  # 只处理这些发件人/主题关键词的邮件留空表示不过滤(全部尝试识别)
+  subject_keywords: []   # 例: ["发票", "fapiao", "invoice"]
+
+ai:
+  text_model: qwen-plus       # PDF/OFD 有文字层时走文本模型
+  vision_model: qwen-vl-max   # 图片 / 无文字层时走视觉模型
+  min_confidence: 0.6         # 低于此置信度判为「待处理」
+  timeout: 60                 # 单次调用超时(秒)
+  max_retries: 3              # 失败重试次数
+
+download:
+  timeout: 20                 # 下载正文/二维码链接的超时(秒)
+  max_bytes: 20971520         # 单文件最大 20MB,超过判失败
+
+paths:
+  data_dir: data              # 所有运行数据根目录
+  # 下面几项默认基于 data_dir,一般不用改
+  db_file: data/fapiao.db
+  archive_dir: data/archive   # 原始发票按 年/月 归档
+  output_file: data/output/发票汇总.xlsx
