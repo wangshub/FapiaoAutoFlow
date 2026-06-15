@@ -71,6 +71,28 @@ def test_pdf_attachment_full_flow(tmp_path):
     s.close()
 
 
+def test_multiple_pdf_attachments_all_saved(tmp_path):
+    """一封邮件带多个发票 PDF 附件,应每个都识别入库。"""
+    s = _store(tmp_path)
+    em = EmailMessage(uid=1, subject="发票", sender="a@b.com", date="",
+                      attachments=[Attachment("a.pdf", "application/pdf", PDF),
+                                   Attachment("b.pdf", "application/pdf", PDF),
+                                   Attachment("c.pdf", "application/pdf", PDF)])
+    counter = {"n": 0}
+
+    def extract_fn(normalized, config, uid=0):
+        counter["n"] += 1
+        return InvoiceRecord(发票号码=f"MULTI{counter['n']}", 开票日期="2026-06-01",
+                             价税合计=100.0, confidence=0.95, source_email_uid=uid,
+                             status=STATUS_OK, raw_json="{}")
+
+    stats = process_email(em, s, _config(), _no_dl, _no_qr, extract_fn=extract_fn)
+    assert stats.sources == 3
+    assert stats.invoices_saved == 3
+    assert {r["发票号码"] for r in s.all_invoices()} == {"MULTI1", "MULTI2", "MULTI3"}
+    s.close()
+
+
 def test_duplicate_invoice_not_saved_twice(tmp_path):
     s = _store(tmp_path)
     cfg = _config()
