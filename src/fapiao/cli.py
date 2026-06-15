@@ -14,8 +14,14 @@ from .store import Store
 def _setup_logging(verbose: bool) -> None:
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+        if verbose else "%(asctime)s %(message)s",
+        datefmt="%H:%M:%S",
     )
+    if not verbose:
+        # 默认只显示我们自己的进展;第三方库(IMAP/HTTP)的 INFO 噪音压到 WARNING
+        for noisy in ("imapclient", "httpx", "httpcore", "openai", "urllib3"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 def cmd_run(args) -> int:

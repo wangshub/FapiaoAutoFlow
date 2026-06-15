@@ -33,6 +33,20 @@ class Stats:
     pending_reasons: list[str] = field(default_factory=list)
 
 
+def _email_outcome(part: Stats) -> str:
+    """把单封邮件的处理结果拼成一句可读的进展提示。"""
+    bits = []
+    if part.invoices_saved:
+        bits.append(f"入库 {part.invoices_saved} 张")
+    if part.duplicates:
+        bits.append(f"重复 {part.duplicates}")
+    if part.pending:
+        bits.append(f"待处理 {part.pending}")
+    if part.errors:
+        bits.append(f"错误 {part.errors}")
+    return "、".join(bits) or "无发票来源,跳过"
+
+
 def _target_folder(part: Stats, config: Config) -> str | None:
     """根据单封邮件的处理结果决定该移入的文件夹;不该移则返回 None。
 
@@ -174,6 +188,7 @@ def run(config: Config, downloader=None, qr_decoder=None,
     own_reader = reader is None
     reader = reader or MailReader(config)
     if own_reader:
+        log.info("连接邮箱 %s …", config.imap_host)
         reader.connect()
 
     # 归类:确保两个目标文件夹存在;建不出来就本轮不移动
@@ -182,29 +197,40 @@ def run(config: Config, downloader=None, qr_decoder=None,
         organize = reader.ensure_folder(config.folder_done) and \
             reader.ensure_folder(config.folder_pending)
 
+    log.info("开始拉取未处理邮件 …")
     moves: list[tuple[int, str]] = []  # (uid, 目标文件夹),收件结束后统一移动
     try:
-        for em in reader.fetch_unprocessed(store.is_email_processed):
-            try:
-                part = process_email(em, store, config, downloader, qr_decoder)
-                _merge(total, part)
-                status = "ok" if part.invoices_saved else ("pending" if part.pending else "dup")
-                store.mark_email_processed(em.uid, em.subject, em.sender, status)
-                if organize:
-                    folder = _target_folder(part, config)
-                    if folder:
-                        moves.append((em.uid, folder))
-            except Exception:  # noqa: BLE001 单封邮件失败不阻塞整体
-                log.exception("处理邮件 uid=%s 失败", em.uid)
-                total.errors += 1
-                store.mark_email_processed(em.uid, em.subject, em.sender, "error")
+        try:
+            for i, em in enumerate(reader.fetch_unprocessed(store.is_email_processed), 1):
+                log.info("[%d] %s — %s", i, (em.subject or "(无主题)")[:40], em.sender)
+                try:
+                    part = process_email(em, store, config, downloader, qr_decoder)
+                    _merge(total, part)
+                    status = "ok" if part.invoices_saved else ("pending" if part.pending else "dup")
+                    store.mark_email_processed(em.uid, em.subject, em.sender, status)
+                    log.info("    ↳ %s", _email_outcome(part))
+                    if organize:
+                        folder = _target_folder(part, config)
+                        if folder:
+                            moves.append((em.uid, folder))
+                except Exception:  # noqa: BLE001 单封邮件失败不阻塞整体
+                    log.exception("处理邮件 uid=%s 失败", em.uid)
+                    total.errors += 1
+                    store.mark_email_processed(em.uid, em.subject, em.sender, "error")
+        except Exception:  # noqa: BLE001 收件/连接中断(如 163 掐断 socket):保住已处理结果
+            log.warning("收件中断(连接异常),已处理的照常归类/导出,剩余邮件下轮再收")
+            total.errors += 1
+        if total.emails == 0 and total.errors == 0:
+            log.info("没有新邮件需要处理")
     finally:
         if organize and moves:
+            log.info("归类:移动 %d 封邮件到对应文件夹 …", len(moves))
             _apply_moves(reader, moves, own_reader)
         if own_reader:
             reader.close()
 
     export_excel(store, config.output_file)
+    log.info("已导出汇总:%s", config.output_file)
     store.close()
     return total
 
@@ -232,6 +258,7 @@ def rebuild(config: Config, downloader=None, qr_decoder=None,
     # 拖垮其余文件夹。不整折重试——发票都在「已处理/待处理」文件夹里(各自独立连接),
     # 即便 INBOX 偶发断连也不会少恢复发票;重试反而会把已扫过的邮件重复处理。
     for folder in folders:
+        log.info("扫描文件夹「%s」…", folder)
         r = reader or MailReader(config)
         try:
             if own_reader:
@@ -240,6 +267,9 @@ def rebuild(config: Config, downloader=None, qr_decoder=None,
                 try:
                     part = process_email(em, store, config, downloader, qr_decoder)
                     _merge(total, part)
+                    if part.invoices_saved or part.duplicates:
+                        log.info("    ↳ %s — %s", (em.subject or "(无主题)")[:40],
+                                 _email_outcome(part))
                 except Exception:  # noqa: BLE001 单封失败不阻塞重建
                     log.exception("重建时处理邮件 uid=%s 失败", em.uid)
                     total.errors += 1
@@ -251,5 +281,6 @@ def rebuild(config: Config, downloader=None, qr_decoder=None,
                 r.close()
 
     export_excel(store, config.output_file)
+    log.info("已导出汇总:%s", config.output_file)
     store.close()
     return total
