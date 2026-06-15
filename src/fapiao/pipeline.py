@@ -228,8 +228,9 @@ def rebuild(config: Config, downloader=None, qr_decoder=None,
     folders = [config.imap_folder, config.folder_done, config.folder_pending]
 
     own_reader = reader is None
-    # 每个文件夹用独立连接:163 在大附件/大邮件之后可能掐断 socket,
-    # 重连可避免一个文件夹的坏连接拖垮其余文件夹的重建。
+    # 每个文件夹用独立连接:163 在大邮件之后可能掐断 socket,独立连接避免一个坏连接
+    # 拖垮其余文件夹。不整折重试——发票都在「已处理/待处理」文件夹里(各自独立连接),
+    # 即便 INBOX 偶发断连也不会少恢复发票;重试反而会把已扫过的邮件重复处理。
     for folder in folders:
         r = reader or MailReader(config)
         try:
