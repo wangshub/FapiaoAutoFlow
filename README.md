@@ -59,29 +59,43 @@ ingest  acquire   normalize  extract      store          export
 
 ## 🚀 快速开始
 
+一行装好,然后跟着向导填两三个问题即可:
+
 ```bash
-# 1. 安装
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
+curl -fsSL https://raw.githubusercontent.com/wangshub/FapiaoAutoFlow/main/install.sh | bash
+```
 
-# 2. 配置(全部配置在一个文件里;含密钥,已被 .gitignore 忽略)
-cp config.example.yaml config.yaml
-#    至少填 imap.password(邮箱授权码)和 ai.api_key;
-#    IMAP 服务器、模型名、收件范围等其余字段,config.example.yaml 里都有注释,照着改即可
+它会克隆项目、建好虚拟环境装依赖,并运行配置向导(问你邮箱、授权码、AI key,自动生成 `config.yaml`)。装完:
 
-# 3. 运行
-python -m fapiao run        # 收件 → 识别 → 入库 → 导出 Excel
-python -m fapiao export     # 仅根据现有数据重新生成 Excel
-python -m fapiao rebuild    # 灾难恢复:从邮箱归档文件夹重建本地数据
-python -m fapiao -v run      # 详细日志
+```bash
+cd ~/FapiaoAutoFlow
+.venv/bin/fapiao run        # 收件 → 识别 → 入库 → 导出 Excel
 ```
 
 > **邮箱授权码**(不是登录密码):邮箱设置 → 开启 IMAP/SMTP 服务 → 生成客户端授权码。
+> 向导只问最关键的几项,其余都有合理默认;想细调见 `config.example.yaml`(每个字段都有注释)。
 
-产出:
-- 汇总表 `data/output/发票汇总.xlsx`
-- 原件归档 `data/archive/年/月/`
-- 数据库 `data/fapiao.db`
+常用命令(激活 venv 后可直接用 `fapiao`):
+
+```bash
+fapiao init       # 重新配置(交互式生成 config.yaml)
+fapiao run        # 收件并识别、入库、导出
+fapiao export     # 仅根据现有数据重新生成 Excel
+fapiao rebuild    # 灾难恢复:从邮箱归档文件夹重建本地数据
+```
+
+产出:汇总表 `data/output/发票汇总.xlsx`、原件归档 `data/archive/年/月/`、数据库 `data/fapiao.db`。
+
+<details>
+<summary>手动安装(不想用脚本)</summary>
+
+```bash
+git clone https://github.com/wangshub/FapiaoAutoFlow.git && cd FapiaoAutoFlow
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+python -m fapiao init       # 或 cp config.example.yaml config.yaml 自行编辑
+```
+</details>
 
 ## 🐳 部署到 NAS / 服务器
 
@@ -96,7 +110,7 @@ docker compose logs -f fapiao
 数据卷挂在宿主机,容器重建 / 升级都不丢。不用 Docker 也可以直接 cron:
 
 ```cron
-*/30 * * * * cd /path/to/FapiaoAutoFlow && .venv/bin/python -m fapiao run >> data/cron.log 2>&1
+*/30 * * * * cd /path/to/FapiaoAutoFlow && .venv/bin/fapiao run >> data/cron.log 2>&1
 ```
 
 ## 📁 邮件归类与恢复

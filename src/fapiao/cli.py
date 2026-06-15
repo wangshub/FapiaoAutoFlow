@@ -45,6 +45,13 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_init(args) -> int:
+    """交互式生成 config.yaml。"""
+    from .init import run_init
+
+    return run_init(args.config)
+
+
 def cmd_rebuild(args) -> int:
     """灾难恢复:从邮箱(含已归类文件夹)重新拉取重建本地数据。"""
     from .pipeline import rebuild
@@ -64,6 +71,9 @@ def main(argv=None) -> int:
     parser.add_argument("-c", "--config", default="config.yaml", help="配置文件路径")
     parser.add_argument("-v", "--verbose", action="store_true", help="详细日志")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_init = sub.add_parser("init", help="交互式生成 config.yaml(首次使用)")
+    p_init.set_defaults(func=cmd_init)
 
     p_run = sub.add_parser("run", help="收件并识别、入库、导出")
     p_run.set_defaults(func=cmd_run)

@@ -9,6 +9,9 @@ description = "发票邮件自动识别归档系统"
 requires-python = ">=3.9"
 dynamic = ["dependencies"]
 
+[project.scripts]
+fapiao = "fapiao.cli:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
