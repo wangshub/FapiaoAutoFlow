@@ -31,6 +31,9 @@ PIP="$DIR/.venv/bin/pip"
 "$PIP" install -q --upgrade pip >/dev/null
 "$PIP" install -q -e . --index-url https://mirrors.aliyun.com/pypi/simple/ >/dev/null 2>&1 \
   || "$PIP" install -q -e . >/dev/null
+# OFD 国标发票支持(依赖较重,装失败不致命——缺它时 OFD 会进待处理)
+"$PIP" install -q easyofd --index-url https://mirrors.aliyun.com/pypi/simple/ >/dev/null 2>&1 \
+  || info "easyofd 安装失败,OFD 发票将进待处理(可后续手动 pip install easyofd)"
 
 # 3. 配置(curl|bash 时 stdin 是脚本本身,需从 /dev/tty 读取交互输入)
 if [ -f config.yaml ]; then

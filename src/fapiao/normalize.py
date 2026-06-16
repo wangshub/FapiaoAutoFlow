@@ -65,35 +65,58 @@ def _pdf_render_images(data: bytes, max_pages: int = 3) -> list[bytes]:
     return images
 
 
+def _ofd_collect_text(parsed) -> str:
+    """从 easyofd 解析出的数据结构里递归收集所有文本片段,拼成纯文本。
+
+    OFD 是 XML 结构,文本直接在数据里,不必渲染(渲染还依赖系统中文字体,常缺)。
+    easyofd 的结构里同一页文本可能重复多份,按「页首文本再次出现」裁到第一份,省 token。
+    """
+    texts: list[str] = []
+
+    def _walk(x):
+        if isinstance(x, dict):
+            t = x.get("text")
+            if isinstance(t, str):
+                texts.append(t)
+            for v in x.values():
+                _walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                _walk(v)
+
+    _walk(parsed)
+    if texts:
+        head = texts[0]
+        for i in range(1, len(texts)):
+            if texts[i] == head:
+                texts = texts[:i]
+                break
+    return " ".join(t.strip() for t in texts if t.strip())
+
+
 def _ofd_to_input(source: InvoiceSource) -> NormalizedInput:
     try:
         from easyofd import OFD
     except Exception as e:
-        raise NormalizeError(f"OFD 解析库不可用:{e}")
+        raise NormalizeError(f"OFD 解析库不可用(pip install easyofd):{e}")
+
+    # easyofd 用 loguru 打一堆字体警告,静音掉
+    try:
+        from loguru import logger as _logger
+        _logger.disable("easyofd")
+    except Exception:
+        pass
 
     try:
         ofd = OFD()
-        ofd.read(source.data, format="bytes")
-        text = ofd.to_txt() or ""
-        if text_is_sufficient(text):
-            return NormalizedInput(mode=MODE_TEXT, text=text, source=source)
-        # 没有足够文字层 -> 转图走视觉
-        import base64
-
-        imgs = ofd.to_jpg() or []
-        image_bytes = []
-        for img in imgs:
-            if isinstance(img, str):       # base64 字符串
-                image_bytes.append(base64.b64decode(img))
-            elif isinstance(img, (bytes, bytearray)):
-                image_bytes.append(bytes(img))
-        if not image_bytes:
-            raise NormalizeError("OFD 既无文字层也无法转图")
-        return NormalizedInput(mode=MODE_IMAGE, images=image_bytes, source=source)
-    except NormalizeError:
-        raise
+        ofd.read(source.data, fmt="binary")   # 入参是原始字节
+        text = _ofd_collect_text(ofd.data)
     except Exception as e:
         raise NormalizeError(f"OFD 解析失败:{e}")
+
+    if text_is_sufficient(text):
+        return NormalizedInput(mode=MODE_TEXT, text=text, source=source)
+    raise NormalizeError("OFD 未抽取到足够发票文字")
 
 
 def normalize(source: InvoiceSource) -> NormalizedInput:

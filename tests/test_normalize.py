@@ -10,7 +10,24 @@ from fapiao.models import (
     SOURCE_TEXT,
     InvoiceSource,
 )
-from fapiao.normalize import NormalizeError, normalize, text_is_sufficient
+from fapiao.normalize import (
+    NormalizeError,
+    _ofd_collect_text,
+    normalize,
+    text_is_sufficient,
+)
+
+
+def test_ofd_collect_text_walks_nested():
+    parsed = [{"page": [{"text": "发票号码"}, {"x": {"text": "123"}}]}]
+    assert _ofd_collect_text(parsed) == "发票号码 123"
+
+
+def test_ofd_collect_text_dedups_repeated_page():
+    # easyofd 常把整页文本重复多份;按页首再现裁掉重复
+    parsed = [{"text": "电子发票"}, {"text": "号码"},
+              {"text": "电子发票"}, {"text": "号码"}]
+    assert _ofd_collect_text(parsed) == "电子发票 号码"
 
 
 def test_text_is_sufficient():
