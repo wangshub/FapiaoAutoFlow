@@ -44,3 +44,39 @@ def test_parse_with_inline_image():
     em = parse_email(2, raw)
     assert len(em.inline_images) == 1
     assert em.inline_images[0].content_type == "image/png"
+
+
+def test_fetch_all_retries_on_abort_then_continues(monkeypatch):
+    """163 中途掐断:fetch_all 应重连重试同一封、不漏不跳,完整扫完。"""
+    from fapiao.config import Config
+    from fapiao.ingest import MailReader
+
+    reader = MailReader(Config(imap_host="x", imap_port=993, imap_user="u", imap_password="p"))
+
+    class FakeClient:
+        def __init__(self):
+            self.aborted_once = set()
+
+        def folder_exists(self, f):
+            return True
+
+        def select_folder(self, f):
+            pass
+
+        def search(self, q):
+            return [3, 1, 2]          # 乱序,验证内部会排序
+
+        def fetch(self, uids, parts):
+            uid = uids[0]
+            if uid == 2 and uid not in self.aborted_once:   # uid=2 第一次断连
+                self.aborted_once.add(uid)
+                raise OSError("socket error")
+            return {uid: {b"RFC822": _build("发票", f"body {uid}")}}
+
+    reader.client = FakeClient()
+    reconnects = []
+    monkeypatch.setattr(reader, "_reconnect", lambda: reconnects.append(1))
+
+    got = [em.uid for em in reader.fetch_all("发票已处理")]
+    assert got == [1, 2, 3]          # 一封不少,顺序正确
+    assert len(reconnects) == 1       # 只重连了一次(重试 uid=2 成功)

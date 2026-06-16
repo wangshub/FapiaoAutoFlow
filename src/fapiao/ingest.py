@@ -184,9 +184,43 @@ class MailReader:
         if not self.client.folder_exists(folder):
             return
         self.client.select_folder(folder)
-        for uid in sorted(self.client.search(["ALL"])):
-            resp = self.client.fetch([uid], ["RFC822"])
-            raw = resp.get(uid, {}).get(b"RFC822")
-            if not raw:
+        uids = sorted(self.client.search(["ALL"]))
+        # 163 有「单连接数据预算」:连拉若干大邮件后下一封大邮件会掐断 socket,但换条
+        # 新连接又能拉。所以断了就重连「重试同一封」一次(多为大附件邮件,不能丢);
+        # 新连接仍失败才算毒邮件、跳过。这样整个文件夹能被完整扫描。
+        i = 0
+        retried = False
+        while i < len(uids):
+            uid = uids[i]
+            try:
+                resp = self.client.fetch([uid], ["RFC822"])
+                raw = resp.get(uid, {}).get(b"RFC822")
+            except Exception:  # noqa: BLE001 连接被断开
+                try:
+                    self._reconnect()
+                    self.client.select_folder(folder)
+                except Exception:  # noqa: BLE001
+                    log.exception("重连失败,中止文件夹「%s」", folder)
+                    return
+                if not retried:
+                    log.warning("拉取 uid=%s 中断,已重连重试该封", uid)
+                    retried = True
+                    continue          # 重试同一封(i 不变)
+                log.warning("拉取 uid=%s 重连后仍失败,跳过", uid)
+                retried = False
+                i += 1                 # 确属毒邮件,跳过
                 continue
-            yield parse_email(uid, raw)
+            i += 1
+            retried = False
+            if raw:
+                yield parse_email(uid, raw)
+
+    def _reconnect(self) -> None:
+        """重新建立连接(用于 163 中途掐断 socket 后续拉)。"""
+        try:
+            if self.client is not None:
+                self.client.logout()
+        except Exception:  # noqa: BLE001
+            pass
+        self.client = None
+        self.connect()
